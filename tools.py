@@ -11,13 +11,11 @@ Rules:
 
 import json
 import logging
-import sys
+import os
 import time
-from pathlib import Path
 
 import requests
-
-sys.path.insert(0, str(Path(__file__).parent / "scripts"))
+from hermes_plugin_core.keychain import cred_get
 
 log = logging.getLogger("databricks")
 
@@ -30,8 +28,6 @@ def _get_state() -> dict:
     """Load credentials from keychain on first call; return cached dict thereafter."""
     if not _state:
         try:
-            from keychain_utils import fetch_credential, CredentialError  # noqa: F401
-
             SERVICE = "hermes-databricks"
             ENV_MAP = {
                 "host":           "DATABRICKS_HOST",
@@ -40,7 +36,14 @@ def _get_state() -> dict:
                 "warehouse_id":   "DATABRICKS_WAREHOUSE_ID",
             }
             for key, env_var in ENV_MAP.items():
-                _state[key] = fetch_credential(SERVICE, key, env_fallback=env_var)
+                val = cred_get(SERVICE, key) or os.environ.get(env_var)
+                if not val:
+                    raise RuntimeError(
+                        f"Credential not found: service='{SERVICE}' key='{key}' "
+                        f"(also checked env var '{env_var}')\n"
+                        f"Run `python setup.py install` to store credentials."
+                    )
+                _state[key] = val
 
             # Strip trailing slash from host
             _state["host"] = _state["host"].rstrip("/")
@@ -50,7 +53,7 @@ def _get_state() -> dict:
         except Exception as e:
             raise RuntimeError(
                 f"Databricks credentials not found. "
-                f"Run `./setup.sh install` in the plugin directory to store credentials. ({e})"
+                f"Run `python setup.py install` in the plugin directory to store credentials. ({e})"
             )
     return _state
 

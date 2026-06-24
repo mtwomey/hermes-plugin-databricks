@@ -115,8 +115,10 @@ All tools accept an optional `workspace` param (e.g. `workspace="dev"`). Omit to
 | `hermes-databricks` | `default_workspace` | Name of the default workspace (e.g. `prod`) |
 | `hermes-databricks` | `workspaces` | Comma-separated list of workspace names |
 | `hermes-databricks-<name>` | `host` | Workspace URL |
-| `hermes-databricks-<name>` | `client_id` | Service principal client ID |
-| `hermes-databricks-<name>` | `client_secret` | Service principal client secret |
+| `hermes-databricks-<name>` | `auth_type` | `"oauth"` or `"pat"` (defaults to `"oauth"` if absent) |
+| `hermes-databricks-<name>` | `client_id` | Service principal client ID *(oauth only)* |
+| `hermes-databricks-<name>` | `client_secret` | Service principal client secret *(oauth only)* |
+| `hermes-databricks-<name>` | `pat` | Personal access token *(pat only)* |
 | `hermes-databricks-<name>` | `warehouse_id` | SQL warehouse ID |
 
 ## Known Catalog Structure (prod workspace)
@@ -145,9 +147,12 @@ cat_salesforce_fomod_prod01.silver.rh_contract__c
 
 ## Authentication
 
-OAuth2 service principal (client_credentials flow) via `/oidc/v1/token`.
+Two auth modes — configured per workspace at `workspace add` time:
+
+**OAuth2 (service principal):** client_credentials flow via `/oidc/v1/token`.
 Tokens expire after 3600s and are refreshed automatically per-workspace in-process when within 100s of expiry.
-No manual refresh needed during normal operation.
+
+**PAT (Personal Access Token):** Token is stored in Keychain and passed directly as `Authorization: Bearer <pat>`. No HTTP round-trip for auth, no expiry tracking. If a PAT is rotated, run `python setup.py workspace update <name>`.
 
 ## Statement API Response Shape
 
@@ -179,13 +184,16 @@ No manual refresh needed during normal operation.
 - **result.data_array can be null** — even on SUCCEEDED with 0 rows. Always use `r["result"]["data_array"] or []`.
 - **Bad workspace name** — passing an unknown `workspace=` returns `{"error": "Workspace 'x' credential 'host' not found..."}` with setup instructions.
 - **No default configured** — if `default_workspace` is empty, all tools return `{"error": "No default workspace configured. Run: python setup.py workspace add <name>"}`. Fix with `python setup.py workspace set-default <name>`.
+- **PAT rotation** — if a PAT is rotated on the Databricks side, all calls return 401 until you run `python setup.py workspace update <name>` and enter the new token. A Hermes restart is then required to clear the in-process credential cache.
+- **Legacy workspaces without `auth_type`** — workspaces added before PAT support default to `"oauth"` gracefully (no migration needed).
+- **Switching auth type** — `workspace update <name>` lets you switch between `oauth` and `pat`; old auth keys are deleted from Keychain automatically.
 
 ## Setup
 
 ```bash
 cd ~/Git_Repos/hermes-plugin-databricks
 python setup.py install            # symlink plugin into Hermes
-python setup.py workspace add prod # enter credentials for 'prod' workspace
+python setup.py workspace add prod # prompts: host, warehouse_id, auth type (oauth/pat), then auth-specific keys
 python setup.py workspace list     # verify setup
 python setup.py audit              # check compliance
 python setup.py test               # smoke test

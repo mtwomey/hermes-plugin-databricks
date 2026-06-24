@@ -40,9 +40,9 @@ def _is_auth_error(err: str) -> bool:
 
 
 def _skip_if_auth(result: dict, label: str) -> bool:
-    """Return True and print a warning if this looks like a transient SP auth issue."""
+    """Return True and print a warning if this looks like an auth error."""
     if "error" in result and _is_auth_error(result["error"]):
-        print(f"  [known issue] SP auth error in {label} — escalate to SP owner: {result['error']}")
+        print(f"  [auth error] in {label}: {result['error']}")
         return True
     return False
 
@@ -51,6 +51,15 @@ def _get_default_workspace_name() -> str:
     """Read the default workspace name from keychain."""
     from hermes_plugin_core.keychain import cred_get
     return (cred_get("hermes-databricks", "default_workspace") or "").strip()
+
+
+def _get_default_workspace_auth_type() -> str:
+    """Return 'oauth' or 'pat' for the default workspace."""
+    from hermes_plugin_core.keychain import cred_get
+    ws = _get_default_workspace_name()
+    if not ws:
+        return "oauth"
+    return (cred_get(f"hermes-databricks-{ws}", "auth_type") or "oauth").lower()
 
 
 def _get_running_warehouse_id(ws_name: str) -> str | None:
@@ -72,7 +81,9 @@ def test_list_workspaces():
     assert "error" not in result, f"list_workspaces error: {result.get('error')}"
     assert "workspaces" in result, f"missing 'workspaces' key: {result}"
     # May be empty if no workspaces configured — that's a valid state for the smoke test
-    print(f"  workspaces: {[w['name'] for w in result['workspaces']]}  default: {result.get('default')}")
+    for ws in result["workspaces"]:
+        assert "auth_type" in ws, f"missing auth_type on workspace {ws.get('name')}: {ws}"
+    print(f"  workspaces: {[(w['name'], w['auth_type']) for w in result['workspaces']]}  default: {result.get('default')}")
 
 
 def test_ping():

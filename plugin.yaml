@@ -2,7 +2,7 @@ name: databricks
 version: 2.0.0
 description: >
   Interact with Databricks workspaces via REST API: multi-workspace support,
-  OAuth2 service-principal auth per workspace, Unity Catalog browsing
+  OAuth2 service-principal auth or PAT auth per workspace, Unity Catalog browsing
   (catalogs, schemas, tables, columns), SQL Statement API execution,
   and SQL warehouse management.
 provides_tools:

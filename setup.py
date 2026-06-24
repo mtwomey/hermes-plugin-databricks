@@ -199,11 +199,27 @@ config = PluginConfig(
 
 
 class DatabricksSetupCLI(SetupCLI):
-    def run(self) -> None:
-        if len(sys.argv) >= 2 and sys.argv[1] == "workspace":
-            cmd_workspace(sys.argv[2:])
-        else:
-            super().run()
+    def _register_extra_subparsers(self, sub) -> None:
+        wp = sub.add_parser("workspace", help="Manage workspaces (list, add, remove, update, set-default)")
+        wp.add_argument(
+            "ws_action",
+            nargs="?",
+            choices=["list", "add", "remove", "update", "set-default"],
+            metavar="ACTION",
+            help="list | add | remove | update | set-default",
+        )
+        wp.add_argument("name", nargs="?", help="Workspace name")
+
+    def _dispatch_extra(self, command: str, args, parser) -> bool:
+        if command == "workspace":
+            ws_args = []
+            if getattr(args, "ws_action", None):
+                ws_args.append(args.ws_action)
+            if getattr(args, "name", None):
+                ws_args.append(args.name)
+            cmd_workspace(ws_args)
+            return True
+        return False
 
 
 if __name__ == "__main__":

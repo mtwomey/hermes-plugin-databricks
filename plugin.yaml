@@ -1,10 +1,12 @@
 name: databricks
-version: 1.1.0
+version: 2.0.0
 description: >
-  Interact with Databricks via REST API: OAuth2 service-principal auth,
-  Unity Catalog browsing (catalogs, schemas, tables, columns), SQL Statement
-  API execution, and SQL warehouse management.
+  Interact with Databricks workspaces via REST API: multi-workspace support,
+  OAuth2 service-principal auth per workspace, Unity Catalog browsing
+  (catalogs, schemas, tables, columns), SQL Statement API execution,
+  and SQL warehouse management.
 provides_tools:
+  - databricks_list_workspaces
   - databricks_ping
   - databricks_list_catalogs
   - databricks_list_schemas
@@ -12,16 +14,3 @@ provides_tools:
   - databricks_get_schema
   - databricks_run_sql
   - databricks_list_warehouses
-requires_env:
-  - name: DATABRICKS_HOST
-    description: "Workspace URL, e.g. https://dbc-e0b9d669-efb7.cloud.databricks.com"
-    secret: false
-  - name: DATABRICKS_CLIENT_ID
-    description: "OAuth2 service principal client ID"
-    secret: false
-  - name: DATABRICKS_CLIENT_SECRET
-    description: "OAuth2 service principal client secret"
-    secret: true
-  - name: DATABRICKS_WAREHOUSE_ID
-    description: "SQL warehouse ID, e.g. ed4e7a4296f9661b"
-    secret: false

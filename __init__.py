@@ -17,6 +17,7 @@ def register(ctx) -> None:
     setup_logging("databricks", get_log_level("databricks"))
 
     _REGISTRY = [
+        (schemas.LIST_WORKSPACES,  tools.databricks_list_workspaces),
         (schemas.PING,             tools.databricks_ping),
         (schemas.LIST_CATALOGS,    tools.databricks_list_catalogs),
         (schemas.LIST_SCHEMAS,     tools.databricks_list_schemas),

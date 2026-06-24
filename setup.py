@@ -26,6 +26,8 @@ config = PluginConfig(
         "warehouse_id":   ("SQL Warehouse ID (e.g. ed4e7a4296f9661b)", "", False),
     },
     requirements=[],
+    has_skill_stub=True,
+    skill_stub_category="data-science",
 )
 
 if __name__ == "__main__":

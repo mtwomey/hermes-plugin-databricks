@@ -5,6 +5,34 @@ Defines what the LLM sees for each databricks_* tool.
 Names must EXACTLY match handler function names in tools.py.
 """
 
+_WORKSPACE_PARAM = {
+    "workspace": {
+        "type": "string",
+        "description": (
+            "Friendly workspace name to query (e.g. \"prod\", \"dev\"). "
+            "Defaults to the configured default workspace if omitted."
+        ),
+    },
+}
+
+# ── List Workspaces ────────────────────────────────────────────────────────────
+
+LIST_WORKSPACES = {
+    "name": "databricks_list_workspaces",
+    "description": (
+        "List all configured Databricks workspaces with their host, default warehouse, "
+        "and which is the current default. "
+        "Returns: {\"workspaces\": [{\"name\": \"...\", \"host\": \"...\", "
+        "\"warehouse_id\": \"...\", \"is_default\": bool}], \"default\": \"...\"} "
+        "or {\"error\": \"...\"}."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+    },
+}
+
 # ── Ping ──────────────────────────────────────────────────────────────────────
 
 PING = {
@@ -12,11 +40,11 @@ PING = {
     "description": (
         "Test Databricks connectivity and authentication. "
         "Executes SELECT current_user() against the configured warehouse. "
-        "Returns: {\"status\": \"ok\", \"user\": \"...\", \"host\": \"...\"} or {\"error\": \"...\"}."
+        "Returns: {\"status\": \"ok\", \"user\": \"...\", \"host\": \"...\", \"workspace\": \"...\"} or {\"error\": \"...\"}."
     ),
     "parameters": {
         "type": "object",
-        "properties": {},
+        "properties": {**_WORKSPACE_PARAM},
         "required": [],
     },
 }
@@ -31,7 +59,7 @@ LIST_CATALOGS = {
     ),
     "parameters": {
         "type": "object",
-        "properties": {},
+        "properties": {**_WORKSPACE_PARAM},
         "required": [],
     },
 }
@@ -51,6 +79,7 @@ LIST_SCHEMAS = {
                 "type": "string",
                 "description": "Catalog name, e.g. \"cat_salesforce_fomod_prod01\".",
             },
+            **_WORKSPACE_PARAM,
         },
         "required": ["catalog"],
     },
@@ -75,6 +104,7 @@ LIST_TABLES = {
                 "type": "string",
                 "description": "Schema name, e.g. \"silver\".",
             },
+            **_WORKSPACE_PARAM,
         },
         "required": ["catalog", "schema"],
     },
@@ -99,6 +129,7 @@ GET_SCHEMA = {
                     "e.g. \"cat_salesforce_fomod_prod01.silver.account\"."
                 ),
             },
+            **_WORKSPACE_PARAM,
         },
         "required": ["table"],
     },
@@ -125,6 +156,11 @@ RUN_SQL = {
                 "type": "integer",
                 "description": "Maximum rows to return (default 100).",
             },
+            "warehouse_id": {
+                "type": "string",
+                "description": "Override the workspace default SQL warehouse ID for this query.",
+            },
+            **_WORKSPACE_PARAM,
         },
         "required": ["sql"],
     },
@@ -142,7 +178,7 @@ LIST_WAREHOUSES = {
     ),
     "parameters": {
         "type": "object",
-        "properties": {},
+        "properties": {**_WORKSPACE_PARAM},
         "required": [],
     },
 }

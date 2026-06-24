@@ -23,7 +23,9 @@ log = logging.getLogger("databricks")
 _workspace_states: dict = {}  # workspace_name -> state dict
 
 PLUGIN_SERVICE = "hermes-databricks"
-WORKSPACE_KEYS = ["host", "client_id", "client_secret", "warehouse_id"]
+WORKSPACE_KEYS_COMMON = ["host", "warehouse_id"]
+WORKSPACE_KEYS_OAUTH  = ["client_id", "client_secret"]
+WORKSPACE_KEYS_PAT    = ["pat"]
 
 
 def _get_default_workspace() -> str:
@@ -42,7 +44,9 @@ def _get_workspace_state(ws_name: str) -> dict:
     if ws_name not in _workspace_states:
         svc = f"hermes-databricks-{ws_name}"
         state: dict = {}
-        for key in WORKSPACE_KEYS:
+
+        # Common keys
+        for key in WORKSPACE_KEYS_COMMON:
             val = cred_get(svc, key)
             if not val:
                 raise RuntimeError(
@@ -50,16 +54,53 @@ def _get_workspace_state(ws_name: str) -> dict:
                     f"Run: python setup.py workspace add {ws_name}"
                 )
             state[key] = val
+
         state["host"] = state["host"].rstrip("/")
-        state["token"] = None
-        state["token_expires_at"] = 0
+
+        # Auth type
+        auth_type = (cred_get(svc, "auth_type") or "oauth").lower().strip()
+        if auth_type not in ("oauth", "pat"):
+            raise RuntimeError(
+                f"Workspace '{ws_name}' has unknown auth_type '{auth_type}'. "
+                f"Expected 'oauth' or 'pat'."
+            )
+        state["auth_type"] = auth_type
+
+        if auth_type == "oauth":
+            for key in WORKSPACE_KEYS_OAUTH:
+                val = cred_get(svc, key)
+                if not val:
+                    raise RuntimeError(
+                        f"Workspace '{ws_name}' credential '{key}' not found. "
+                        f"Run: python setup.py workspace update {ws_name}"
+                    )
+                state[key] = val
+            state["token"] = None
+            state["token_expires_at"] = 0
+        else:  # pat
+            val = cred_get(svc, "pat")
+            if not val:
+                raise RuntimeError(
+                    f"Workspace '{ws_name}' credential 'pat' not found. "
+                    f"Run: python setup.py workspace update {ws_name}"
+                )
+            state["pat"] = val
+
         _workspace_states[ws_name] = state
     return _workspace_states[ws_name]
 
 
 def _get_token(ws_name: str) -> str:
-    """Return a valid OAuth2 token for ws_name, refreshing if within 100s of expiry."""
+    """Return a valid Bearer token for ws_name.
+
+    - oauth: fetches/caches OAuth2 client_credentials token, refreshed 100s before expiry.
+    - pat:   returns the stored PAT directly (no HTTP call, PATs do not expire automatically).
+    """
     state = _get_workspace_state(ws_name)
+    if state["auth_type"] == "pat":
+        return state["pat"]
+
+    # oauth path
     if state["token"] and time.time() < state["token_expires_at"]:
         return state["token"]
 
@@ -163,6 +204,7 @@ def databricks_list_workspaces(args: dict, **kwargs) -> str:
                 "name": name,
                 "host": cred_get(svc, "host") or "(missing)",
                 "warehouse_id": cred_get(svc, "warehouse_id") or "(missing)",
+                "auth_type": cred_get(svc, "auth_type") or "oauth",
                 "is_default": name == default,
             })
         log.info("list_workspaces: found %d workspaces, default=%s", len(result), default)

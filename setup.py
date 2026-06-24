@@ -24,12 +24,18 @@ from hermes_plugin_core.keychain import cred_get, cred_set, cred_delete
 from hermes_plugin_core.setup_cli import SetupCLI, PluginConfig
 
 PLUGIN_SERVICE = "hermes-databricks"
-WORKSPACE_KEYS = ["host", "client_id", "client_secret", "warehouse_id"]
+WORKSPACE_KEYS_COMMON = ["host", "warehouse_id"]
+WORKSPACE_KEYS_OAUTH  = ["client_id", "client_secret"]
+WORKSPACE_KEYS_PAT    = ["pat"]
+# All possible credential keys — used by workspace remove to clean up Keychain completely
+WORKSPACE_KEYS_ALL    = WORKSPACE_KEYS_COMMON + WORKSPACE_KEYS_OAUTH + WORKSPACE_KEYS_PAT + ["auth_type"]
+
 WORKSPACE_KEY_LABELS = {
     "host":          ("Workspace URL (e.g. https://dbc-xxx.cloud.databricks.com)", False),
+    "warehouse_id":  ("SQL Warehouse ID (e.g. ed4e7a4296f9661b)", False),
     "client_id":     ("Service Principal Client ID", False),
     "client_secret": ("Client Secret", True),
-    "warehouse_id":  ("SQL Warehouse ID (e.g. ed4e7a4296f9661b)", False),
+    "pat":           ("Personal Access Token", True),
 }
 NAME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
@@ -58,6 +64,16 @@ def _prompt(label: str, is_secret: bool, current: str = "") -> str:
     return val or current
 
 
+def _prompt_auth_type(current: str = "") -> str:
+    """Prompt for auth type; return 'oauth' or 'pat'."""
+    hint = f" [{current}]" if current else " [oauth]"
+    while True:
+        val = input(f"  Auth type (oauth / pat){hint}: ").strip().lower() or current or "oauth"
+        if val in ("oauth", "pat"):
+            return val
+        print("  Must be 'oauth' or 'pat'. Try again.")
+
+
 def cmd_workspace(args: list) -> None:
     if not args:
         print("Usage: python setup.py workspace <list|add|remove|update|set-default> [name]")
@@ -78,7 +94,8 @@ def cmd_workspace(args: list) -> None:
             marker = " *" if n == default else ""
             host = cred_get(_workspace_service(n), "host") or "(missing)"
             wh   = cred_get(_workspace_service(n), "warehouse_id") or "(missing)"
-            print(f"  {n}{marker}  host={host}  warehouse={wh}")
+            auth_type = cred_get(_workspace_service(n), "auth_type") or "oauth"
+            print(f"  {n}{marker}  auth={auth_type}  host={host}  warehouse={wh}")
 
     # ── add ───────────────────────────────────────────────────────────────────
     elif subcmd == "add":
@@ -94,8 +111,23 @@ def cmd_workspace(args: list) -> None:
             sys.exit(1)
 
         print(f"Adding workspace '{name}':")
+
+        # Common keys
         vals = {}
-        for key in WORKSPACE_KEYS:
+        for key in WORKSPACE_KEYS_COMMON:
+            label, is_secret = WORKSPACE_KEY_LABELS[key]
+            vals[key] = _prompt(label, is_secret)
+            if not vals[key]:
+                print(f"  Error: {key} is required.")
+                sys.exit(1)
+
+        # Auth type
+        auth_type = _prompt_auth_type()
+        vals["auth_type"] = auth_type
+
+        # Auth-specific keys
+        auth_keys = WORKSPACE_KEYS_OAUTH if auth_type == "oauth" else WORKSPACE_KEYS_PAT
+        for key in auth_keys:
             label, is_secret = WORKSPACE_KEY_LABELS[key]
             vals[key] = _prompt(label, is_secret)
             if not vals[key]:
@@ -108,7 +140,7 @@ def cmd_workspace(args: list) -> None:
 
         manifest.append(name)
         _save_manifest(manifest)
-        print(f"  Workspace '{name}' saved.")
+        print(f"  Workspace '{name}' saved (auth_type={auth_type}).")
 
         set_default = input("  Set as default workspace? [y/N]: ").strip().lower()
         if set_default == "y":
@@ -133,7 +165,7 @@ def cmd_workspace(args: list) -> None:
             print("Aborted.")
             return
         svc = _workspace_service(name)
-        for key in WORKSPACE_KEYS:
+        for key in WORKSPACE_KEYS_ALL:
             try:
                 cred_delete(svc, key)
             except Exception:
@@ -160,8 +192,34 @@ def cmd_workspace(args: list) -> None:
             print(f"Workspace '{name}' not found.")
             sys.exit(1)
         svc = _workspace_service(name)
-        print(f"Updating workspace '{name}' (leave blank to keep current value):")
-        for key in WORKSPACE_KEYS:
+        current_auth = (cred_get(svc, "auth_type") or "oauth").lower()
+        print(f"Updating workspace '{name}' (auth_type={current_auth}, leave blank to keep current value):")
+
+        # Common keys
+        for key in WORKSPACE_KEYS_COMMON:
+            label, is_secret = WORKSPACE_KEY_LABELS[key]
+            current = "" if is_secret else (cred_get(svc, key) or "")
+            new_val = _prompt(label, is_secret, current)
+            if new_val:
+                cred_set(svc, key, new_val)
+
+        # Auth type (can change — if switching, old auth keys are deleted)
+        new_auth = _prompt_auth_type(current=current_auth)
+        if new_auth != current_auth:
+            # Delete stale auth keys from old type
+            old_keys = WORKSPACE_KEYS_OAUTH if current_auth == "oauth" else WORKSPACE_KEYS_PAT
+            for key in old_keys:
+                try:
+                    cred_delete(svc, key)
+                except Exception:
+                    pass
+            cred_set(svc, "auth_type", new_auth)
+            print(f"  Switched auth_type from '{current_auth}' to '{new_auth}'.")
+            current_auth = new_auth
+
+        # Auth-specific keys for the (possibly new) type
+        auth_keys = WORKSPACE_KEYS_OAUTH if current_auth == "oauth" else WORKSPACE_KEYS_PAT
+        for key in auth_keys:
             label, is_secret = WORKSPACE_KEY_LABELS[key]
             current = "" if is_secret else (cred_get(svc, key) or "")
             new_val = _prompt(label, is_secret, current)

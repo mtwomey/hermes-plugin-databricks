@@ -1,5 +1,5 @@
 name: databricks
-version: 1.0.0
+version: 1.1.0
 description: >
   Interact with Databricks via REST API: OAuth2 service-principal auth,
   Unity Catalog browsing (catalogs, schemas, tables, columns), SQL Statement

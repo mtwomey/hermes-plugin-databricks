@@ -142,7 +142,7 @@ def _run_sql(sql: str, ws_name: str, warehouse_id: str = None, timeout_s: int = 
     Notes:
     - Uses wait_timeout=0s + polling so the warehouse auto-starts transparently.
     - data_array values are all strings even for numeric/timestamp columns.
-    - data_array may be None on SUCCEEDED with 0 rows — always use `or []`.
+    - data_array key is absent (not null) on SUCCEEDED with 0 rows — use .get() defensively.
     """
     state = _get_workspace_state(ws_name)
     effective_warehouse = warehouse_id or state["warehouse_id"]
@@ -174,7 +174,8 @@ def _run_sql(sql: str, ws_name: str, warehouse_id: str = None, timeout_s: int = 
         log.debug("Statement %s state=%s", sid, state_val)
         if state_val == "SUCCEEDED":
             cols = [c["name"] for c in r["manifest"]["schema"]["columns"]]
-            rows = r["result"]["data_array"] or []
+            result_obj = r.get("result") or {}
+            rows = result_obj.get("data_array") or []
             return cols, rows
         elif state_val in ("FAILED", "CANCELED", "CLOSED"):
             err = r["status"].get("error", {}).get("message", state_val)

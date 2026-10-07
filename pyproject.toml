@@ -1,0 +1,17 @@
+# Python dependencies for Hermes's package manager. Hermes makes this plugin a uv
+# workspace member of each dependency generation and installs [project].dependencies
+# (these replace plugin.yaml python_dependencies). hermes-plugin-core comes from its
+# public GitHub repo so this file is identical on every machine; every plugin on a
+# machine must use this same source for it.
+
+[project]
+name = "hermes-plugin-databricks"
+version = "0.0.0"
+requires-python = ">=3.11"
+dependencies = ["hermes-plugin-core"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+hermes-plugin-core = { git = "https://github.com/mtwomey/hermes-plugin-core", branch = "main" }

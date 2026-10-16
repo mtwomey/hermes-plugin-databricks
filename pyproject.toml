@@ -13,5 +13,7 @@ dependencies = ["hermes-plugin-core"]
 [tool.uv]
 package = false
 
+# Pinned by tag: uv keeps a locked git commit forever, so a tag change is what
+# makes Hermes re-resolve core. Bump this tag in EVERY plugin together.
 [tool.uv.sources]
-hermes-plugin-core = { git = "https://github.com/mtwomey/hermes-plugin-core", branch = "main" }
+hermes-plugin-core = { git = "https://github.com/mtwomey/hermes-plugin-core", tag = "v0.8.0" }

@@ -1,5 +1,5 @@
 ---
-name: databricks
+name: databricks-plugin
 description: >
   Databricks Unity Catalog and SQL warehouses via the databricks native plugin.
   This is a redirect stub — load the full skill with skill_view(name="databricks:databricks").

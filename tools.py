@@ -173,7 +173,10 @@ def _run_sql(sql: str, ws_name: str, warehouse_id: str = None, timeout_s: int = 
         state_val = r["status"]["state"]
         log.debug("Statement %s state=%s", sid, state_val)
         if state_val == "SUCCEEDED":
-            cols = [c["name"] for c in r["manifest"]["schema"]["columns"]]
+            # DDL (CREATE/DROP/GRANT, etc.) succeeds with no result set: the
+            # manifest/schema/columns keys may be missing entirely.
+            schema = (r.get("manifest") or {}).get("schema") or {}
+            cols = [c["name"] for c in schema.get("columns") or []]
             result_obj = r.get("result") or {}
             rows = result_obj.get("data_array") or []
             return cols, rows

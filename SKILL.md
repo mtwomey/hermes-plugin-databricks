@@ -47,6 +47,8 @@ python setup.py workspace remove dev
 
 To query a specific workspace in a tool call, pass `workspace="<name>"`. Omit it to use the default.
 
+Configured workspaces (as of 2026-10): `dev` (PAT, default), `prod` (OAuth, read-write SP), `prod-readonly` (OAuth, `sp-data-science-readonly` — SELECT-only via `dbr-sg-cat-data-science-prod-reader`; verified all writes/DDL/GRANT denied; cannot see `cat_salesforce_fomod_*` catalogs). Prefer `prod-readonly` for inspection-only queries on prod. Creds also in AWS secret `databricks-readonly` (itoss-data-science-Prod).
+
 ## Available Tools
 
 | Tool | Description |
@@ -182,6 +184,8 @@ Tokens expire after 3600s and are refreshed automatically per-workspace in-proce
 - **SCD2 variants** — many tables have a `_scd2` suffixed variant. For most analysis, use base table names.
 - **Token expiry** — tokens expire after 3600s. Plugin refreshes per-workspace automatically.
 - **result.data_array can be null** — even on SUCCEEDED with 0 rows. Always use `r["result"]["data_array"] or []`.
+- **DDL has no manifest** — CREATE/DROP/GRANT etc. succeed with no `manifest.schema.columns`; the plugin returns `{"columns": [], "rows": [], "row_count": 0}` for these (older versions wrongly reported `{"error": "'columns'"}`).
+- **Running many statements (e.g. permission probes)** — `tool_call` accepts only ONE entry for local plugin tools (only `connectors__*` tools batch). Issue each `databricks_run_sql` as its own `tool_call` invocation, all in the same assistant turn — they run in parallel with no extra round-trip and each result/error stays separate. Don't build a batch-SQL tool for this.
 - **Bad workspace name** — passing an unknown `workspace=` returns `{"error": "Workspace 'x' credential 'host' not found..."}` with setup instructions.
 - **No default configured** — if `default_workspace` is empty, all tools return `{"error": "No default workspace configured. Run: python setup.py workspace add <name>"}`. Fix with `python setup.py workspace set-default <name>`.
 - **PAT rotation** — if a PAT is rotated on the Databricks side, all calls return 401 until you run `python setup.py workspace update <name>` and enter the new token. A Hermes restart is then required to clear the in-process credential cache.
